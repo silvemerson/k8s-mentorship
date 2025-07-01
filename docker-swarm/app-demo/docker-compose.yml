@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: silvemerson/teste-lab-web
+    container_name: nginx-nfs
+    ports:
+      - "8080:80"
+    volumes:
+      - webdata:/usr/share/nginx/html:rw
+    restart: always
+
+volumes:
+  webdata:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=192.168.56.10,nolock,soft,rw"
+      device: ":/srv/nfs_share"
