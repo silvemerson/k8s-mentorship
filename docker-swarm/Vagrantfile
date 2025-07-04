@@ -28,4 +28,30 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
       vb.cpus = 1
     end
   end
+
+  config.vm.define "docker-node2" do |node|
+    node.vm.hostname = "docker-node2"
+    node.vm.network "private_network", ip: "192.168.56.13"
+    node.vm.provider "virtualbox" do |vb|
+      vb.memory = 512
+      vb.cpus = 1
+    end
+  end
+
+  config.vm.define "docker-node3" do |node|
+    node.vm.hostname = "docker-node3"
+    node.vm.network "private_network", ip: "192.168.56.14"
+    node.vm.provider "virtualbox" do |vb|
+      vb.memory = 512
+      vb.cpus = 1
+    end
+  end
+  config.vm.define "docker-node4" do |node|
+    node.vm.hostname = "docker-node4"
+    node.vm.network "private_network", ip: "192.168.56.15"
+    node.vm.provider "virtualbox" do |vb|
+      vb.memory = 512
+      vb.cpus = 1
+    end
+  end      
 end
