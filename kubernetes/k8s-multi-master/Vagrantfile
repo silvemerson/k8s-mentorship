@@ -1,0 +1,71 @@
+# Vagrantfile - Cluster Kubernetes HA com 3 Masters, 2 Workers e 1 LoadBalancer (HAProxy)
+
+VAGRANTFILE_API_VERSION = "2"
+
+NODE_PREFIX = "k8s-"
+NODES = [
+  { :hostname => "master-1",       :ip => "192.168.56.11" },
+  { :hostname => "master-2",       :ip => "192.168.56.12" },
+  { :hostname => "master-3",       :ip => "192.168.56.13" },
+  { :hostname => "loadbalancer",   :ip => "192.168.56.10" },
+  { :hostname => "worker-1",       :ip => "192.168.56.21" },
+  { :hostname => "worker-2",       :ip => "192.168.56.22" }
+]
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = "ubuntu/jammy64"
+
+  NODES.each do |node|
+    config.vm.define NODE_PREFIX + node[:hostname] do |node_config|
+      node_config.vm.hostname = NODE_PREFIX + node[:hostname]
+      node_config.vm.network "private_network", ip: node[:ip]
+
+      node_config.vm.provider :virtualbox do |vb|
+        vb.name = NODE_PREFIX + node[:hostname]
+        
+        # Define recursos por tipo de nó
+        if node[:hostname].include?("loadbalancer")
+          vb.memory = 512
+          vb.cpus = 1
+        elsif node[:hostname].include?("master")
+          vb.memory = 2048
+          vb.cpus = 2
+        else
+          vb.memory = 1024
+          vb.cpus = 2
+        end
+      end
+
+      node_config.vm.provision "shell", inline: <<-SHELL
+        apt-get update
+        apt-get install -y curl gnupg2 apt-transport-https ca-certificates software-properties-common
+        modprobe overlay
+        modprobe br_netfilter
+        echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/k8s.conf
+        echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.d/k8s.conf
+        echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/k8s.conf
+        sysctl --system
+
+        # Instalar containerd
+        apt-get install -y containerd
+        mkdir -p /etc/containerd
+        containerd config default | tee /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+        sed -i 's#sandbox_image = \\"registry.k8s.io/pause:3.8\\"#sandbox_image = \\"registry.k8s.io/pause:3.9\\"#' /etc/containerd/config.toml
+        systemctl restart containerd
+        systemctl enable containerd
+
+        # Instalar cri-tools
+        apt-get install -y cri-tools
+        echo "runtime-endpoint: unix:///run/containerd/containerd.sock" > /etc/crictl.yaml
+
+        # Instalar Kubernetes
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+        apt-get update
+        apt-get install -y kubelet kubeadm kubectl
+        apt-mark hold kubelet kubeadm kubectl
+      SHELL
+    end
+  end
+end
